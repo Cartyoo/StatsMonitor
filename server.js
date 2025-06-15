@@ -63,7 +63,16 @@ app.post('/notify', (req, res) => {
   res.status(201).send({ status: 'Notification sent' });
 });
 
-const PORT = 4000;
+
+app.get('/', (req, res) => {
+   res.sendFile(__dirname + '/index.html');
+});
+
+app.get('/manifest.json', (req, res) => {
+   res.sendFile(__dirname + '/manifest.json');
+});
+
+const PORT = 9264;
 server.listen(PORT, () => {
   console.log(`Stats/Notification server running on port ${PORT}`);
 });
