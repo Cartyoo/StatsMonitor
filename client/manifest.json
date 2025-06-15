@@ -1,0 +1,7 @@
+{
+  "name": "Stats/Notifications",
+  "short_name": "Stats/Notifications",
+  "start_url": "/client/",
+  "display": "standalone",
+  "icons": [ ]
+}

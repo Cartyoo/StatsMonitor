@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Notification & Stats Client</title>
+
+  <!-- apple stuff -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="/client/manifest.json" />
+
+  <style>
+body {
+  background: #121212;
+  color: #ddd;
+  font-family: Arial, sans-serif;
+  padding: 20px;
+  
+  /* Flexbox centering */
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* centers children horizontally */
+  min-height: 100vh;   /* full viewport height */
+  box-sizing: border-box;
+}
+
+
+#content {
+  border: 2px solid #444;
+  padding: 20px; /* more padding */
+  border-radius: 8px;
+  max-width: 600px;
+  margin: auto;
+  position: relative;
+  transition: border-color 0.3s ease;
+  font-size: 1.3rem; /* bigger font */
+  line-height: 1.5;
+}
+
+#notifications {
+  margin-bottom: 20px;
+}
+
+.notification {
+  border: 2px solid #4CAF50;
+  border-radius: 8px; /* slightly bigger rounding */
+  padding: 18px 20px; /* more padding */
+  margin-bottom: 15px;
+  position: relative;
+  animation: pulse 1s ease-in-out 1;
+  background: #222;
+  font-size: 1.3rem; /* bigger font */
+  line-height: 1.4;
+}
+
+.notification .title {
+  font-size: 1.6rem; /* bigger title */
+  font-weight: bold;
+  display: inline-block;
+}
+
+.notification .priority {
+  font-size: 1.1rem; /* bigger priority */
+  color: #4caf50;
+  margin-left: 12px;
+}
+
+.notification .timestamp {
+  font-size: 1rem; /* bigger timestamp */
+  color: #888;
+  margin-top: 10px;
+}
+
+.notification .close-btn {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  color: #888;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 1.6rem; /* bigger close button */
+  user-select: none;
+  transition: color 0.3s ease;
+}
+
+.notification .close-btn:hover {
+  color: #fff;
+}
+
+
+#stats {
+  border-top: 1px solid #444;
+  padding-top: 20px;
+  font-size: 1.3rem;
+  line-height: 1.5;
+  max-width: 600px;
+  width: 100%; /* so it shrinks on small screens */
+  box-sizing: border-box;
+  /* no margin needed since body is flex with align-items:center */
+}
+
+#stats > div {
+  font-size: 1.7rem; /* bigger font for each stat line */
+  margin-bottom: 8px; /* some spacing between lines */
+}
+
+#stats strong {
+  font-weight: bold;
+  font-size: 1.7rem; /* slightly bigger for labels like "CPU Usage:" */
+}
+
+
+
+.usage {
+  font-weight: bold;
+}
+
+.usage.green {
+  color: #4CAF50;
+}
+
+.usage.yellow {
+  color: #FFEB3B;
+}
+
+.usage.red {
+  color: #F44336;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.7); }
+  70% { box-shadow: 0 0 10px 10px rgba(76, 175, 80, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+}
+
+
+.disconnected {
+  color: #F44336; /* red */
+  font-size: 2.5rem; /* large text */
+  font-weight: bold;
+  text-align: center;
+  padding: 40px 20px;
+}
+
+
+  </style>
+</head>
+<body>
+  <div id="content">
+    <div id="notifications"></div>
+    <div id="stats">Waiting for stats or notifications...</div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/plugin/relativeTime.js"></script>
+  <script>
+    dayjs.extend(dayjs_plugin_relativeTime);
+
+    const SERVER_URL = 'http://fl.plasma.services:9264'; // Change this to your VPS
+
+    const notificationsDiv = document.getElementById('notifications');
+    const statsDiv = document.getElementById('stats');
+    const socket = io(SERVER_URL);
+
+    // We'll store notifications in an array of objects
+    const notifications = [];
+    const MAX_NOTIFICATIONS = 5;
+
+    // Add a notification and update UI
+    function addNotification(notif) {
+      // Limit to MAX_NOTIFICATIONS
+      if (notifications.length >= MAX_NOTIFICATIONS) {
+        // Remove the oldest notification
+        notifications.shift();
+      }
+
+      notif.id = Date.now() + Math.random(); // unique id
+      notifications.push(notif);
+      renderNotifications();
+    }
+
+    // Remove notification by id
+    function removeNotification(id) {
+      const index = notifications.findIndex(n => n.id === id);
+      if (index !== -1) {
+        notifications.splice(index, 1);
+        renderNotifications();
+      }
+    }
+
+    // Render notifications to the page
+    function renderNotifications() {
+      notificationsDiv.innerHTML = '';
+
+      if (notifications.length === 0) {
+        // No notifications, show stats
+        statsDiv.style.display = 'block';
+        statsDiv.classList.remove('disconnected');
+      } else {
+        statsDiv.style.display = 'none';
+
+        notifications.forEach(notif => {
+          const notifElem = document.createElement('div');
+          notifElem.className = 'notification';
+          notifElem.innerHTML = `
+            <div class="title">${notif.title} <span class="priority">Priority: ${notif.priority}</span></div>
+            <div>${notif.message}</div>
+            <div class="timestamp">Received ${dayjs(notif.timestamp).to(dayjs())}</div>
+            <div class="close-btn" title="Dismiss">&times;</div>
+          `;
+          // Close button handler
+          notifElem.querySelector('.close-btn').onclick = () => removeNotification(notif.id);
+
+          notificationsDiv.appendChild(notifElem);
+        });
+      }
+    }
+
+    // Update stats text
+    function showStats(stats) {
+        statsDiv.classList.remove('disconnected');
+
+    if (notifications.length > 0) return; // Don't show if notifications are active
+
+    const getUsageClass = (percent) => {
+        if (percent <= 40) return 'green';
+        if (percent <= 70) return 'yellow';
+        return 'red';
+    };
+
+    const cpuClass = getUsageClass(stats.cpuUsagePercent);
+    const ramClass = getUsageClass(stats.memUsagePercent);
+
+    statsDiv.innerHTML = `
+        <div><strong>CPU Usage:</strong> <span class="usage ${cpuClass}">${stats.cpuUsagePercent}%</span></div>
+        <div><strong>RAM Usage:</strong> <span class="usage ${ramClass}">${stats.memUsagePercent}%</span> 
+        (${stats.freeMemMB} MB free of ${stats.totalMemMB} MB)
+        </div>
+        <div class="timestamp">Last update: ${dayjs(stats.timestamp).to(dayjs())}</div>
+    `;
+    }
+
+
+    socket.on('connect', () => {
+      console.log('Connected to server');
+    });
+
+    socket.on('notification', (notif) => {
+      addNotification(notif);
+    });
+
+    socket.on('stats', (stats) => {
+      showStats(stats);
+    });
+
+    socket.on('disconnect', () => {
+    notificationsDiv.innerHTML = '';
+    statsDiv.style.display = 'block';
+    statsDiv.classList.add('disconnected');
+    statsDiv.textContent = 'Disconnected from server.';
+    });
+
+
+    // Initial render to show stats placeholder
+    renderNotifications();
+  </script>
+</body>
+</html>
